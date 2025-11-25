@@ -1,0 +1,727 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>PALAASH GANG | SYSTEM.OS</title>
+    
+    <!-- Three.js for Spherical Harmonics -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+    
+    <!-- Tailwind CSS -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    
+    <!-- KaTeX -->
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/katex@0.16.9/dist/katex.min.css">
+    <script src="https://cdn.jsdelivr.net/npm/katex@0.16.9/dist/katex.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/katex@0.16.9/dist/contrib/auto-render.min.js"></script>
+
+    <!-- Space Mono Font -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Space+Mono:ital,wght@0,400;0,700;1,400&display=swap" rel="stylesheet">
+
+    <style>
+        :root {
+            --glass-border: rgba(255, 255, 255, 0.15);
+            --glass-bg: rgba(0, 0, 0, 0.4);
+            --glass-highlight: rgba(255, 255, 255, 0.05);
+            --neon-accent: #ffffff;
+        }
+
+        body {
+            font-family: 'Space Mono', monospace;
+            background-color: #050505;
+            color: #e0e0e0;
+            overflow-x: hidden;
+            margin: 0;
+        }
+
+        /* --- THREE.JS BACKGROUND --- */
+        #canvas-container {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100vw;
+            height: 100vh;
+            z-index: -1;
+            /* Gradient overlay to make text readable */
+            background: radial-gradient(circle at center, transparent 0%, #000000 120%);
+        }
+
+        /* --- GLASSMORPHISM CARDS --- */
+        .glass-panel {
+            background: var(--glass-bg);
+            backdrop-filter: blur(12px);
+            -webkit-backdrop-filter: blur(12px);
+            border: 1px solid var(--glass-border);
+            border-top: 1px solid rgba(255, 255, 255, 0.3);
+            border-left: 1px solid rgba(255, 255, 255, 0.3);
+            box-shadow: 0 8px 32px 0 rgba(0, 0, 0, 0.5);
+            border-radius: 4px;
+            transition: all 0.4s cubic-bezier(0.25, 0.46, 0.45, 0.94);
+            position: relative;
+            overflow: hidden;
+        }
+
+        .glass-panel::before {
+            content: '';
+            position: absolute;
+            top: 0;
+            left: -100%;
+            width: 100%;
+            height: 100%;
+            background: linear-gradient(90deg, transparent, rgba(255,255,255,0.05), transparent);
+            transition: 0.5s;
+        }
+
+        .glass-panel:hover::before {
+            left: 100%;
+        }
+
+        .glass-panel:hover {
+            transform: translateY(-5px) scale(1.005);
+            border-color: rgba(255, 255, 255, 0.4);
+            box-shadow: 0 15px 40px 0 rgba(0, 0, 0, 0.7);
+            background: rgba(20, 20, 20, 0.6);
+        }
+
+        /* --- SCROLL ANIMATIONS --- */
+        .reveal {
+            opacity: 0;
+            transform: translateY(30px);
+            transition: all 0.8s cubic-bezier(0.5, 0, 0, 1);
+        }
+
+        .reveal.active {
+            opacity: 1;
+            transform: translateY(0);
+        }
+
+        /* --- LOADING SCREEN --- */
+        #loader {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: #000;
+            z-index: 9999;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            flex-direction: column;
+        }
+        
+        .loader-bar {
+            width: 200px;
+            height: 2px;
+            background: #333;
+            margin-top: 20px;
+            position: relative;
+            overflow: hidden;
+        }
+        
+        .loader-progress {
+            position: absolute;
+            top: 0;
+            left: 0;
+            height: 100%;
+            width: 0%;
+            background: #fff;
+            animation: load 2s cubic-bezier(0.22, 1, 0.36, 1) forwards;
+        }
+
+        @keyframes load {
+            0% { width: 0%; }
+            100% { width: 100%; }
+        }
+
+        /* Custom Scrollbar */
+        ::-webkit-scrollbar { width: 6px; }
+        ::-webkit-scrollbar-track { background: #000; }
+        ::-webkit-scrollbar-thumb { background: #555; border-radius: 3px; }
+        ::-webkit-scrollbar-thumb:hover { background: #fff; }
+
+        .section-tag {
+            writing-mode: vertical-rl;
+            text-orientation: mixed;
+            transform: rotate(180deg);
+        }
+
+        /* Math Styling */
+        .katex-display { margin: 0.5em 0; }
+        .katex { font-size: 0.9em; color: #ddd; }
+    </style>
+</head>
+<body class="selection:bg-white selection:text-black">
+
+    <!-- Loading Screen -->
+    <div id="loader">
+        <div class="text-2xl font-bold tracking-[0.3em] animate-pulse">INITIALIZING SYSTEM</div>
+        <div class="loader-bar"><div class="loader-progress"></div></div>
+    </div>
+
+    <!-- 3D Background -->
+    <div id="canvas-container"></div>
+
+    <main class="relative z-10 max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-20 flex flex-col gap-24">
+        
+        <!-- HEADER / HERO -->
+        <header class="reveal min-h-[60vh] flex flex-col justify-center border-l-2 border-white/20 pl-8 md:pl-16">
+            <div class="glass-panel inline-block px-4 py-1 mb-6 text-xs tracking-[0.2em] w-max uppercase text-gray-400">
+                System_Status: Online // Ver 2.5
+            </div>
+            <h1 class="text-6xl md:text-9xl font-bold tracking-tighter uppercase leading-none mb-4 mix-blend-difference text-white">
+                Palaash<br>Gang
+            </h1>
+            <div class="text-lg md:text-xl text-gray-300 font-light tracking-wide max-w-2xl mb-8">
+                Computational Systems &middot; Mathematics &middot
+            </div>
+            <div class="flex flex-wrap gap-4 text-xs font-bold uppercase tracking-widest">
+                <a href="mailto:palaashgang@gmail.com" class="glass-panel px-6 py-3 hover:bg-white hover:text-black transition-colors">+91 93539 733162</a>
+                <a href="#" class="glass-panel px-6 py-3 hover:bg-white hover:text-black transition-colors">LinkedIn</a>
+                <a href="#" class="glass-panel px-6 py-3 hover:bg-white hover:text-black transition-colors">palaashgang@gmail.com</a>
+            </div>
+        </header>
+
+        <!-- EDUCATION SECTION -->
+        <section id="education" class="reveal relative">
+            <div class="absolute -left-4 md:-left-12 top-0 h-full w-px bg-white/20"></div>
+            <h2 class="text-4xl md:text-5xl font-bold mb-12 uppercase tracking-tighter flex items-center gap-4">
+                <span class="text-sm font-normal tracking-widest border border-white/30 px-2 py-1 rounded-full">01</span> 
+                Education
+            </h2>
+
+            <div class="grid grid-cols-1 gap-8">
+                <!-- IB -->
+                <div class="glass-panel p-8">
+                    <div class="flex flex-col md:flex-row justify-between md:items-start mb-4">
+                        <h3 class="text-2xl font-bold text-white">Indus International School Pune / IBDP</h3>
+                        <span class="text-xs uppercase bg-white/10 px-2 py-1 rounded">Aug 2025 - Present</span>
+                    </div>
+                    <div class="grid md:grid-cols-2 gap-6 text-sm">
+                        <div>
+                            <p class="text-gray-400 uppercase text-xs mb-1">Higher Level (HL)</p>
+                            <p class="font-bold">Math AA, Physics, Chemistry, Economics</p>
+                        </div>
+                        <div>
+                            <p class="text-gray-400 uppercase text-xs mb-1">Standard Level (SL)</p>
+                            <p>English Lang & Lit, Spanish Ab. Initio</p>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Stanford -->
+                <div class="glass-panel p-8">
+                    <h3 class="text-2xl font-bold text-white mb-2">Stanford Pre-Collegiate Studies</h3>
+                    <div class="space-y-2 text-sm">
+                        <div class="flex justify-between border-b border-white/10 pb-2">
+                            <span>Linear Algebra XM511</span>
+                            <span class="text-gray-400">Jun - Aug</span>
+                        </div>
+                        <div class="flex justify-between pt-1">
+                            <span>Multivariable Differential Calculus XM521</span>
+                            <span class="text-gray-400">Aug - Dec</span>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- IGCSE & AP Grid -->
+                <div class="grid md:grid-cols-2 gap-8">
+                    <!-- IGCSE -->
+                    <div class="glass-panel p-6">
+                        <h3 class="text-xl font-bold mb-4">IGCSE / Grade X</h3>
+                        <ul class="space-y-2 text-sm text-gray-300">
+                            <li class="flex justify-between"><span>Physics</span> <span class="text-white font-bold">A*</span></li>
+                            <li class="flex justify-between"><span>Chemistry</span> <span class="text-white font-bold">A*</span></li>
+                            <li class="flex justify-between"><span>Add. Mathematics</span> <span class="text-white font-bold">A*</span></li>
+                            <li class="flex justify-between"><span>Geography</span> <span class="text-white font-bold">A*</span></li>
+                            <li class="flex justify-between"><span>Computer Science</span> <span class="text-white font-bold">A</span></li>
+                            <li class="flex justify-between"><span>First Lang English</span> <span class="text-white font-bold">A</span></li>
+                            <li class="flex justify-between"><span>Foreign Lang French</span> <span class="text-white font-bold">A</span></li>
+                            <li class="mt-4 pt-4 border-t border-white/10 flex justify-between items-center">
+                                <span class="uppercase text-xs tracking-widest text-gray-500">SAT (Oct 2024)</span>
+                                <span class="text-white font-bold font-mono text-lg">1550<span class="text-sm text-gray-500">/1600</span></span>
+                            </li>
+                            <li class="text-xs text-right text-gray-500">750 ERBW, 800 Math</li>
+                        </ul>
+                    </div>
+                    
+                    <!-- AP Scores -->
+                    <div class="glass-panel p-6">
+                        <h3 class="text-xl font-bold mb-4">Advanced Placement</h3>
+                        <div class="space-y-3 text-sm">
+                            <div>
+                                <span class="text-xs text-gray-500 uppercase">2026</span>
+                                <div class="font-bold">AP Physics C: E&M</div>
+                            </div>
+                            <div class="flex justify-between">
+                                <span>AP Physics C: Mechanics</span>
+                                <span class="font-bold text-white">5/5 (2025)</span>
+                            </div>
+                            <div class="flex justify-between">
+                                <span>AP Computer Science A</span>
+                                <span class="font-bold text-white">5/5 (2025)</span>
+                            </div>
+                            <div class="flex justify-between">
+                                <span>AP Calculus BC</span>
+                                <span class="font-bold text-white">5/5 (2024)</span>
+                            </div>
+                            <div class="flex justify-between">
+                                <span>AP Microeconomics</span>
+                                <span class="font-bold text-white">5/5 (2024)</span>
+                            </div>
+                            <div class="flex justify-between">
+                                <span>AP Statistics</span>
+                                <span class="font-bold text-white">5/5 (2024)</span>
+                            </div>
+                            <div class="flex justify-between">
+                                <span>AP Calculus AB</span>
+                                <span class="font-bold text-white">5/5 (2023)</span>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </section>
+
+        <!-- PROJECTS / RESEARCH -->
+        <section id="projects" class="reveal relative">
+            <div class="absolute -left-4 md:-left-12 top-0 h-full w-px bg-white/20"></div>
+            <h2 class="text-4xl md:text-5xl font-bold mb-12 uppercase tracking-tighter flex items-center gap-4">
+                <span class="text-sm font-normal tracking-widest border border-white/30 px-2 py-1 rounded-full">02</span> 
+                Research & Publications
+            </h2>
+
+            <div class="space-y-12">
+                
+                <!-- Project 1 -->
+                <article class="glass-panel p-8 md:p-10 relative overflow-hidden group">
+                    <div class="absolute top-0 right-0 p-4 opacity-10 group-hover:opacity-20 transition-opacity text-6xl">∫</div>
+                    <div class="flex flex-col gap-2 mb-6">
+                        <span class="text-xs font-bold uppercase tracking-widest text-blue-300">Expository Research | Euler Circle | Jun-Aug 2025</span>
+                        <h3 class="text-2xl md:text-3xl font-bold text-white leading-tight">Spherical Harmonics as Eigenfunctions of the Laplace-Beltrami Operator</h3>
+                        <p class="font-mono text-xs text-gray-500">DOI: 10.13140/RG.2.2.22284.37765</p>
+                    </div>
+                    <div class="text-gray-300 space-y-4 text-sm leading-relaxed max-w-4xl">
+                        <p>Derived the explicit construction of spherical harmonics as eigenfunctions of the Laplace-Beltrami operator on $S^2$, proving orthonormality and completeness in $L^2(S^2)$.</p>
+                        <p>Established the Addition Theorem and reproducing-kernel formulation, and generalized the framework to hyper-spherical harmonics on the n-sphere.</p>
+                
+                    </div>
+                </article>
+
+                <!-- Project 2 -->
+                <article class="glass-panel p-8 md:p-10">
+                    <div class="flex flex-col gap-2 mb-6">
+                        <span class="text-xs font-bold uppercase tracking-widest text-green-300">Expository Research | Euler Circle | Jul-Aug 2025</span>
+                        <h3 class="text-2xl md:text-3xl font-bold text-white leading-tight">Group Actions and Möbius Symmetries in Hyperbolic Tessellations</h3>
+                        <p class="font-mono text-xs text-gray-500">DOI: 10.13140/RG.2.2.18942.65605</p>
+                    </div>
+                    <div class="text-gray-300 space-y-4 text-sm leading-relaxed max-w-4xl">
+                        <p>Co-authored a paper explaining hyperbolic tessellations via group actions of discrete subgroups of $PSL(2,\mathbb{R})$. Proved Möbius/Blaschke maps are orientation-preserving isometries of $(\mathbb{H}, K=-1)$.</p>
+                        <p>Constructed tessellations from Fuchsian group fundamental domains and derived the regular $\{p, q\}$ tiling condition using Gauss-Bonnet and triangle-group reflections.</p>
+                
+                    </div>
+                </article>
+
+                <!-- Project 3 -->
+                <article class="glass-panel p-8 md:p-10">
+                    <div class="flex flex-col gap-2 mb-6">
+                        <span class="text-xs font-bold uppercase tracking-widest text-red-300">IRIS National Fair Submission | Aug-Nov 2025</span>
+                        <h3 class="text-2xl md:text-3xl font-bold text-white leading-tight">Hybrid Agent-Based Simulation Framework for Crowd Density</h3>
+                    </div>
+                    <div class="text-gray-300 space-y-4 text-sm leading-relaxed max-w-4xl">
+                        <p>Built a hybrid agent-based simulation integrating Social Force, TTC anticipation, and ORCA velocity constraints to model density, collision risk, and compressive-force fields in high-density crowds.</p>
+                        <p>Implemented multi-scale density estimation (local, Voronoi, KDE) and a composite risk metric to identify congestion hotspots. Optimized barrier engine reduced peak density by 20-34% and collision counts by 2-4x.</p>
+                    </div>
+                </article>
+                
+                <!-- Project 4 -->
+                <article class="glass-panel p-8 md:p-10">
+                    <div class="flex flex-col gap-2 mb-6">
+                        <span class="text-xs font-bold uppercase tracking-widest text-yellow-300">IRIS National Fair Submission | Apr-Nov 2025</span>
+                        <h3 class="text-2xl md:text-3xl font-bold text-white leading-tight">AI-Driven Mobile Application for Adolescent Financial Learning</h3>
+                    </div>
+                    <div class="text-gray-300 space-y-4 text-sm leading-relaxed max-w-4xl">
+                        <p>Developed an AI-driven financial learning app integrating behavioral nudging, adaptive budgeting feedback, and a transparent SmartSpend Credit Score (SCS).</p>
+                        <p>Conducted a 24-week randomized controlled field trial $(n=60)$ demonstrating large literacy gains $(d\approx1.20)$ and 40-50% improvement in goal completion.</p>
+            
+                    </div>
+                </article>
+
+                <!-- Project 5 -->
+                <article class="glass-panel p-8 md:p-10">
+                    <div class="flex flex-col gap-2 mb-6">
+                        <span class="text-xs font-bold uppercase tracking-widest text-purple-300">Space Satellite | Aug 2025 - Present</span>
+                        <h3 class="text-2xl md:text-3xl font-bold text-white leading-tight">SEU Rate Measurement in Commercial SRAM</h3>
+                    </div>
+                    <div class="text-gray-300 space-y-4 text-sm leading-relaxed max-w-4xl">
+                        <p>Designing a 1U-2U CubeSat experiment to measure cosmic-radiation-induced SEUs (Single Event Upsets) in low-cost SRAM, comparing unshielded, shielded, and magnetically biased configurations.</p>
+                        <p>Implementing onboard SEU-logging architecture using a Raspberry Pi, Geiger dose sensor, and UHF telemetry with Python routines for pattern scanning.</p>
+                    </div>
+                </article>
+                
+                 <!-- Project 6 (Placeholder) -->
+                 <article class="glass-panel p-6 opacity-80 hover:opacity-100">
+                    <h3 class="text-lg font-bold text-white">Game Theory Paper</h3>
+                    <p class="text-sm text-gray-400">Work in Progress | Computational Biology</p>
+                </article>
+
+            </div>
+        </section>
+
+        <!-- EXPERIENCE -->
+        <section id="experience" class="reveal relative">
+            <div class="absolute -left-4 md:-left-12 top-0 h-full w-px bg-white/20"></div>
+            <h2 class="text-4xl md:text-5xl font-bold mb-12 uppercase tracking-tighter flex items-center gap-4">
+                <span class="text-sm font-normal tracking-widest border border-white/30 px-2 py-1 rounded-full">03</span> 
+                Experience
+            </h2>
+
+            <div class="grid grid-cols-1 md:grid-cols-3 gap-6">
+                <!-- Scriptex -->
+                <div class="glass-panel p-6 flex flex-col justify-between">
+                    <div>
+                        <h3 class="text-xl font-bold text-orange-400 mb-1">Co-founder @ scriptex.ai</h3>
+                        <p class="text-xs text-gray-500 uppercase mb-4">Oct 2025 - Present</p>
+                        <p class="text-sm text-gray-300">AI-powered research and writing incubator platform that streamlines the academic workflow from ideation to collaborative writing and submission.</p>
+                    </div>
+                </div>
+
+                <!-- Schoolhouse -->
+                <div class="glass-panel p-6 flex flex-col justify-between">
+                    <div>
+                        <h3 class="text-xl font-bold text-orange-400 mb-1">Tutor @ schoolhouse.world</h3>
+                        <p class="text-xs text-gray-500 uppercase mb-4">May 2022 - Present</p>
+                        <p class="text-sm text-gray-300 mb-4">Certified to tutor in Pre-Algebra through Calculus, SAT Prep, and AP Sciences.</p>
+                    </div>
+                    <div class="border-t border-white/10 pt-4 text-xs font-mono text-gray-400 space-y-1">
+                        <p>Learners: 300+</p>
+                        <p>Hours: 47</p>
+                        <p>Positive Ratings: 405</p>
+                        <p>Super Helpful Ratings: 167 </p>
+                        <p>Countries: 43</p>
+                    </div>
+                </div>
+
+                <!-- ZNotes -->
+                <div class="glass-panel p-6 flex flex-col justify-between">
+                    <div>
+                        <h3 class="text-xl font-bold text-orange-400 mb-1">Contributor @ ZNotes</h3>
+                        <p class="text-xs text-gray-500 uppercase mb-4">Oct 2025- Present</p>
+                        <p class="text-sm text-gray-300">Curate AP Physics C Mechanics study material & content.</p>
+                    </div>
+                </div>
+            </div>
+        </section>
+
+        <!-- SKILLS -->
+        <section id="skills" class="reveal relative">
+            <div class="absolute -left-4 md:-left-12 top-0 h-full w-px bg-white/20"></div>
+            <h2 class="text-4xl md:text-5xl font-bold mb-12 uppercase tracking-tighter flex items-center gap-4">
+                <span class="text-sm font-normal tracking-widest border border-white/30 px-2 py-1 rounded-full">04</span> 
+                Capabilities
+            </h2>
+
+            <div class="glass-panel p-8">
+                <div class="mb-8">
+                    <h3 class="text-sm font-bold uppercase tracking-widest text-gray-500 mb-4">Technical Interests</h3>
+                    <div class="flex flex-wrap gap-2">
+                        <span class="px-3 py-1 border border-white/20 rounded-full text-xs hover:bg-white hover:text-black transition-colors">Computational Mathematics</span>
+                        <span class="px-3 py-1 border border-white/20 rounded-full text-xs hover:bg-white hover:text-black transition-colors">Scientific Computing</span>
+                        <span class="px-3 py-1 border border-white/20 rounded-full text-xs hover:bg-white hover:text-black transition-colors">Differential Geometry</span>
+                        <span class="px-3 py-1 border border-white/20 rounded-full text-xs hover:bg-white hover:text-black transition-colors">Dynamical Systems</span>
+                        <span class="px-3 py-1 border border-white/20 rounded-full text-xs hover:bg-white hover:text-black transition-colors">Algorithm Design</span>
+                        <span class="px-3 py-1 border border-white/20 rounded-full text-xs hover:bg-white hover:text-black transition-colors">Numerical Simulation</span>
+                        <span class="px-3 py-1 border border-white/20 rounded-full text-xs hover:bg-white hover:text-black transition-colors">FinTech Innovation</span>
+                        <span class="px-3 py-1 border border-white/20 rounded-full text-xs hover:bg-white hover:text-black transition-colors">CubeSat & Space Systems</span>
+                        <span class="px-3 py-1 border border-white/20 rounded-full text-xs hover:bg-white hover:text-black transition-colors">Quantitative Finance</span>
+                    </div>
+                </div>
+                <div>
+                    <h3 class="text-sm font-bold uppercase tracking-widest text-gray-500 mb-4">Software Stack</h3>
+                    <div class="font-mono text-sm text-gray-300 space-y-2">
+                        <p><span class="text-white font-bold">Languages:</span> Python & Libraries, JS, SQL, HTML, CSS, MATLAB, C++</p>
+                        <p><span class="text-white font-bold">Tools:</span> autoCAD, LaTeX/BiBiTeX/TikZ, Node JS, React, GSAP</p>
+                    </div>
+                </div>
+            </div>
+        </section>
+
+        <!-- EXTRA CURRICULAR -->
+        <section id="extra" class="reveal relative pb-24">
+            <div class="absolute -left-4 md:-left-12 top-0 h-full w-px bg-white/20"></div>
+            <h2 class="text-4xl md:text-5xl font-bold mb-12 uppercase tracking-tighter flex items-center gap-4">
+                <span class="text-sm font-normal tracking-widest border border-white/30 px-2 py-1 rounded-full">05</span> 
+                Extra-Curricular
+            </h2>
+
+            <div class="grid gap-6">
+                <!-- Skating -->
+                <div class="glass-panel p-6 flex flex-col md:flex-row items-center gap-6">
+                    <div class="text-4xl">⛸️</div>
+                    <div class="flex-1">
+                        <div class="flex justify-between items-baseline">
+                            <h3 class="text-xl font-bold">National Medalist Speed Skating</h3>
+                            <span class="text-xs uppercase text-gray-500">2015 - Present</span>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Math Olympiad -->
+                <div class="glass-panel p-6 flex flex-col md:flex-row items-center gap-6">
+                    <div class="text-4xl">∑</div>
+                    <div class="flex-1">
+                        <div class="flex justify-between items-baseline">
+                            <h3 class="text-xl font-bold">Math Olympiad</h3>
+                            <span class="text-xs uppercase text-gray-500">2020 - Present</span>
+                        </div>
+                        <ul class="text-sm text-gray-300 mt-2 space-y-1">
+                            <li>AMC 12A 2025: <span class="font-bold text-white">136.5/150</span></li>
+                            <li>AMC 10B 2024: <span class="font-bold text-white">109.5/150 </span></li>
+                            <li>Clash of Pi: Asia Rank 3 (2022), Rank 4 (2021)</li>
+                            <li>Distinction on CEMC Fryer (2023) and Galois (2024)</li>
+                            <li>Honor Roll on AMC 8 2020</li>
+                        </ul>
+                    </div>
+                </div>
+
+                <!-- Music -->
+                <div class="glass-panel p-6 flex flex-col md:flex-row items-center gap-6">
+                    <div class="text-4xl">🎵</div>
+                    <div class="flex-1">
+                        <div class="flex justify-between items-baseline">
+                            <h3 class="text-xl font-bold">Music</h3>
+                            <span class="text-xs uppercase text-gray-500">2015 - Present</span>
+                        </div>
+                        <p class="text-sm text-gray-300 mt-2">
+                            Piano, Guitar, Drums, Music Theory (Trinity Examinations).
+                        </p>
+                    </div>
+                </div>
+            </div>
+        </section>
+
+        <footer class="text-center py-12 text-xs text-gray-600 font-mono">
+            <p>TERMINAL SESSION ENDED.</p>
+            <p class="mt-2">© 2025 PALAASH GANG</p>
+        </footer>
+    </main>
+
+    <script>
+        // --- 1. LOADER ---
+        window.addEventListener('load', () => {
+            setTimeout(() => {
+                document.getElementById('loader').style.opacity = '0';
+                setTimeout(() => {
+                    document.getElementById('loader').style.display = 'none';
+                    // Trigger entry animations
+                    revealOnScroll();
+                }, 500);
+            }, 1500);
+        });
+
+        // --- 2. SCROLL ANIMATIONS ---
+        const revealElements = document.querySelectorAll('.reveal');
+        
+        function revealOnScroll() {
+            const windowHeight = window.innerHeight;
+            const elementVisible = 150;
+
+            revealElements.forEach((reveal) => {
+                const elementTop = reveal.getBoundingClientRect().top;
+                if (elementTop < windowHeight - elementVisible) {
+                    reveal.classList.add('active');
+                }
+            });
+        }
+        window.addEventListener('scroll', revealOnScroll);
+
+        // --- 3. THREE.JS SPHERICAL HARMONICS VISUALIZATION ---
+        const scene = new THREE.Scene();
+        const camera = new THREE.PerspectiveCamera(75, window.innerWidth / window.innerHeight, 0.1, 1000);
+        const renderer = new THREE.WebGLRenderer({ alpha: true, antialias: true });
+        
+        renderer.setSize(window.innerWidth, window.innerHeight);
+        document.getElementById('canvas-container').appendChild(renderer.domElement);
+
+        // Parameters
+        let time = 0;
+        
+        // Create Geometry - High resolution sphere
+        const geometry = new THREE.SphereGeometry(1, 128, 128);
+        
+        // Shader Material for Vertex Displacement based on pseudo-Spherical Harmonics
+        // We use a custom shader to make it look like a liquid/mathematical blob
+        const material = new THREE.ShaderMaterial({
+            uniforms: {
+                uTime: { value: 0 },
+                uMouse: { value: new THREE.Vector2(0.5, 0.5) },
+                uColor1: { value: new THREE.Color('#3b82f6') }, // Blue
+                uColor2: { value: new THREE.Color('#8b5cf6') }  // Purple
+            },
+            wireframe: true,
+            transparent: true,
+            opacity: 0.15,
+            vertexShader: `
+                uniform float uTime;
+                uniform vec2 uMouse;
+                varying vec2 vUv;
+                varying float vDistortion;
+                varying vec3 vNormal;
+
+                // 3D Noise function (Simplex-like)
+                vec3 mod289(vec3 x) { return x - floor(x * (1.0 / 289.0)) * 289.0; }
+                vec4 mod289(vec4 x) { return x - floor(x * (1.0 / 289.0)) * 289.0; }
+                vec4 permute(vec4 x) { return mod289(((x*34.0)+1.0)*x); }
+                vec4 taylorInvSqrt(vec4 r) { return 1.79284291400159 - 0.85373472095314 * r; }
+                float snoise(vec3 v) {
+                    const vec2  C = vec2(1.0/6.0, 1.0/3.0) ;
+                    const vec4  D = vec4(0.0, 0.5, 1.0, 2.0);
+                    vec3 i  = floor(v + dot(v, C.yyy) );
+                    vec3 x0 = v - i + dot(i, C.xxx) ;
+                    vec3 g = step(x0.yzx, x0.xyz);
+                    vec3 l = 1.0 - g;
+                    vec3 i1 = min( g.xyz, l.zxy );
+                    vec3 i2 = max( g.xyz, l.zxy );
+                    vec3 x1 = x0 - i1 + C.xxx;
+                    vec3 x2 = x0 - i2 + C.yyy;
+                    vec3 x3 = x0 - D.yyy;
+                    i = mod289(i);
+                    vec4 p = permute( permute( permute(
+                                i.z + vec4(0.0, i1.z, i2.z, 1.0 ))
+                            + i.y + vec4(0.0, i1.y, i2.y, 1.0 ))
+                            + i.x + vec4(0.0, i1.x, i2.x, 1.0 ));
+                    float n_ = 0.142857142857;
+                    vec3  ns = n_ * D.wyz - D.xzx;
+                    vec4 j = p - 49.0 * floor(p * ns.z * ns.z);
+                    vec4 x_ = floor(j * ns.z);
+                    vec4 y_ = floor(j - 7.0 * x_ );
+                    vec4 x = x_ *ns.x + ns.yyyy;
+                    vec4 y = y_ *ns.x + ns.yyyy;
+                    vec4 h = 1.0 - abs(x) - abs(y);
+                    vec4 b0 = vec4( x.xy, y.xy );
+                    vec4 b1 = vec4( x.zw, y.zw );
+                    vec4 s0 = floor(b0)*2.0 + 1.0;
+                    vec4 s1 = floor(b1)*2.0 + 1.0;
+                    vec4 sh = -step(h, vec4(0.0));
+                    vec4 a0 = b0.xzyw + s0.xzyw*sh.xxyy ;
+                    vec4 a1 = b1.xzyw + s1.xzyw*sh.zzww ;
+                    vec3 p0 = vec3(a0.xy,h.x);
+                    vec3 p1 = vec3(a0.zw,h.y);
+                    vec3 p2 = vec3(a1.xy,h.z);
+                    vec3 p3 = vec3(a1.zw,h.w);
+                    vec4 norm = taylorInvSqrt(vec4(dot(p0,p0), dot(p1,p1), dot(p2, p2), dot(p3,p3)));
+                    p0 *= norm.x;
+                    p1 *= norm.y;
+                    p2 *= norm.z;
+                    p3 *= norm.w;
+                    vec4 m = max(0.6 - vec4(dot(x0,x0), dot(x1,x1), dot(x2,x2), dot(x3,x3)), 0.0);
+                    m = m * m;
+                    return 42.0 * dot( m*m, vec4( dot(p0,x0), dot(p1,x1),
+                                                dot(p2,x2), dot(p3,x3) ) );
+                }
+
+                void main() {
+                    vUv = uv;
+                    vNormal = normal;
+                    
+                    // Spherical Harmonic-like distortion based on noise and position
+                    // Y_l^m visualization approximation via composite sin waves and noise
+                    
+                    float noise = snoise(position * 2.0 + uTime * 0.5);
+                    float harmonic = sin(position.y * 5.0 + uTime) * cos(position.x * 5.0);
+                    
+                    // Mouse influence
+                    float mouseDist = distance(uv, uMouse);
+                    float interaction = 1.0 - smoothstep(0.0, 0.5, mouseDist);
+                    
+                    float distortion = noise * 0.3 + harmonic * 0.1 + interaction * 0.2;
+                    vDistortion = distortion;
+                    
+                    vec3 newPos = position + normal * distortion;
+                    gl_Position = projectionMatrix * modelViewMatrix * vec4(newPos, 1.0);
+                }
+            `,
+            fragmentShader: `
+                uniform vec3 uColor1;
+                uniform vec3 uColor2;
+                varying float vDistortion;
+                varying vec3 vNormal;
+
+                void main() {
+                    // Mix colors based on distortion
+                    vec3 color = mix(uColor1, uColor2, vDistortion * 2.0 + 0.5);
+                    
+                    // Add rim lighting effect
+                    float rim = 1.0 - dot(vNormal, vec3(0.0, 0.0, 1.0));
+                    
+                    gl_FragColor = vec4(color + rim * 0.5, 0.5); // 0.5 Opacity for line style
+                }
+            `
+        });
+
+        const sphere = new THREE.Mesh(geometry, material);
+        scene.add(sphere);
+
+        // Add a second, larger, more transparent mesh for depth ("Glass" layers)
+        const outerGeo = new THREE.SphereGeometry(1.5, 64, 64);
+        const outerMat = new THREE.MeshBasicMaterial({
+            color: 0xffffff,
+            wireframe: true,
+            transparent: true,
+            opacity: 0.03
+        });
+        const outerSphere = new THREE.Mesh(outerGeo, outerMat);
+        scene.add(outerSphere);
+
+        camera.position.z = 2.5;
+
+        // Mouse Move Interaction
+        const mouse = new THREE.Vector2();
+        window.addEventListener('mousemove', (event) => {
+            mouse.x = event.clientX / window.innerWidth;
+            mouse.y = 1.0 - (event.clientY / window.innerHeight);
+            material.uniforms.uMouse.value = mouse;
+            
+            // Subtle rotation based on mouse
+            sphere.rotation.x = mouse.y * 0.5;
+            sphere.rotation.y = mouse.x * 0.5;
+        });
+
+        // Resize Handling
+        window.addEventListener('resize', () => {
+            camera.aspect = window.innerWidth / window.innerHeight;
+            camera.updateProjectionMatrix();
+            renderer.setSize(window.innerWidth, window.innerHeight);
+        });
+
+        // Animation Loop
+        function animate() {
+            requestAnimationFrame(animate);
+            time += 0.005;
+            
+            material.uniforms.uTime.value = time;
+            
+            sphere.rotation.y += 0.002;
+            outerSphere.rotation.y -= 0.001;
+            outerSphere.rotation.x += 0.001;
+
+            renderer.render(scene, camera);
+        }
+        animate();
+
+        // Render Math equations
+        document.addEventListener("DOMContentLoaded", function() {
+            renderMathInElement(document.body, {
+                delimiters: [
+                    {left: '$$', right: '$$', display: true},
+                    {left: '$', right: '$', display: false}
+                ],
+                throwOnError : false
+            });
+        });
+    </script>
+</body>
+</html>
